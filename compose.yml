@@ -1,0 +1,87 @@
+services:
+  gluetun:
+    image: qmcgaw/gluetun:${GLUETUN_TAG:-latest}
+    container_name: ${TS_HOSTNAME:-nord-exit-node}-gluetun
+    hostname: ${TS_HOSTNAME:-nord-exit-node}-gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    sysctls:
+      # Gluetun owns the shared network namespace, so forwarding sysctls live here.
+      net.ipv4.ip_forward: "1"
+      net.ipv6.conf.all.forwarding: "1"
+    environment:
+      # NordVPN via Gluetun. Use either OpenVPN service credentials or WireGuard.
+      VPN_SERVICE_PROVIDER: ${VPN_SERVICE_PROVIDER:-nordvpn}
+      VPN_TYPE: ${VPN_TYPE:-wireguard}
+      SERVER_COUNTRIES: ${SERVER_COUNTRIES:-}
+      SERVER_REGIONS: ${SERVER_REGIONS:-}
+      SERVER_CITIES: ${SERVER_CITIES:-}
+      SERVER_HOSTNAMES: ${SERVER_HOSTNAMES:-}
+
+      # OpenVPN mode: use Nord manual/service credentials, not your normal login.
+      OPENVPN_USER: ${OPENVPN_USER:-}
+      OPENVPN_PASSWORD: ${OPENVPN_PASSWORD:-}
+
+      # WireGuard/NordLynx mode.
+      WIREGUARD_PRIVATE_KEY: ${WIREGUARD_PRIVATE_KEY:-}
+      WIREGUARD_ADDRESSES: ${WIREGUARD_ADDRESSES:-}
+
+      # Keep Gluetun's killswitch ON. Do not set FIREWALL=off.
+      # Only put real LAN subnets here if the container must bypass VPN to reach them.
+      # Do NOT put 100.64.0.0/10 here; route-fix handles tailnet return traffic.
+      FIREWALL_OUTBOUND_SUBNETS: ${FIREWALL_OUTBOUND_SUBNETS:-}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - gluetun-state:/gluetun
+    # Gluetun ships an image-level HEALTHCHECK; Compose's service_healthy
+    # dependency below uses that without overriding it here.
+    restart: unless-stopped
+
+  tailscale:
+    image: tailscale/tailscale:${TAILSCALE_TAG:-latest}
+    container_name: ${TS_HOSTNAME:-nord-exit-node}
+    # Share Gluetun's network namespace so default egress is NordVPN.
+    network_mode: service:gluetun
+    depends_on:
+      gluetun:
+        condition: service_healthy
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY:?set TS_AUTHKEY in .env}
+      TS_HOSTNAME: ${TS_HOSTNAME:-nord-exit-node}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_AUTH_ONCE: "true"
+      TS_USERSPACE: "false"
+      TS_EXTRA_ARGS: ${TS_EXTRA_ARGS:---advertise-exit-node --accept-dns=false}
+      # Gluetun uses nftables internally; this avoids legacy iptables mismatch.
+      TS_DEBUG_FIREWALL_MODE: ${TS_DEBUG_FIREWALL_MODE:-nftables}
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+      - /lib/modules:/lib/modules:ro
+    restart: unless-stopped
+
+  route-fix:
+    image: tailscale/tailscale:${TAILSCALE_TAG:-latest}
+    container_name: ${TS_HOSTNAME:-nord-exit-node}-route-fix
+    network_mode: service:gluetun
+    cap_add:
+      - NET_ADMIN
+    depends_on:
+      tailscale:
+        condition: service_started
+    environment:
+      ROUTE_FIX_INTERVAL: ${ROUTE_FIX_INTERVAL:-30}
+    volumes:
+      - ./scripts/route-fix.sh:/route-fix.sh:ro
+    entrypoint: ["/bin/sh", "/route-fix.sh"]
+    restart: unless-stopped
+
+volumes:
+  gluetun-state:
+  tailscale-state:

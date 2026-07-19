@@ -27,6 +27,9 @@ services:
       # WireGuard/NordLynx mode.
       WIREGUARD_PRIVATE_KEY: ${WIREGUARD_PRIVATE_KEY:-}
       WIREGUARD_ADDRESSES: ${WIREGUARD_ADDRESSES:-}
+      # Optional tuning. These must be explicitly passed through from .env.
+      WIREGUARD_MTU: ${WIREGUARD_MTU:-}
+      WIREGUARD_IMPLEMENTATION: ${WIREGUARD_IMPLEMENTATION:-auto}
 
       # Keep Gluetun's killswitch ON. Do not set FIREWALL=off.
       # Only put real LAN subnets here if the container must bypass VPN to reach them.

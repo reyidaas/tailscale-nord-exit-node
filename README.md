@@ -44,6 +44,9 @@ TS_AUTHKEY=...
 VPN_TYPE=wireguard
 WIREGUARD_PRIVATE_KEY=...
 SERVER_COUNTRIES=...
+# Optional tuning (leave blank / auto unless troubleshooting):
+WIREGUARD_MTU=
+WIREGUARD_IMPLEMENTATION=auto
 ```
 
 or, for Nord OpenVPN mode:

@@ -44,6 +44,7 @@ Run the following commands manually, in this exact order.
    nordvpn set technology nordlynx
    nordvpn set lan-discovery enabled
    nordvpn allowlist add subnet 100.64.0.0/10
+   nordvpn set firewall off
    nordvpn connect "$COUNTRY"
 
 5. Verify both layers:
